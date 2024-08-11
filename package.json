@@ -1,0 +1,17 @@
+{
+  "scripts": {
+    "start": "npx tsx watch --env-file=.env server"
+  },
+  "name": "jamf-api-proxy",
+  "description": "Self host this in your environment, make it serverless, protect it  - Create an API user that will execute all the commands - Needs Read and Write to Computers, Computer extension attributes, File Attachments - Get the Jamf CA certificate",
+  "version": "1.0.0",
+  "main": "sever.js",
+  "devDependencies": {
+    "@types/node": "^22.2.0",
+    "tsx": "^4.17.0",
+    "typescript": "^5.5.4"
+  },
+  "author": "",
+  "license": "ISC",
+  "type": "module"
+}
