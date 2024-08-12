@@ -1,28 +1,33 @@
 import { IncomingMessage } from "http"
 
 const JSS_URL = process.env.JSS_URL || "";
-const JSS_USERNAME = process.env.JSS_USERNAME || "";
-const JSS_PASSWORD = process.env.JSS_PASSWORD || "";
+const JSS_CLIENTID = process.env.JSS_CLIENTID || "";
+const JSS_CLIENTSECRET = process.env.JSS_CLIENTSECRET || "";
 
 let bearerToken = ""
 let bearerExpiresAt = 0
 
-const getBearerToken = async (url: string, username: string, password: string) : Promise<string> => {
+const getBearerToken = async (url: string, clientId: string, clientSecret: string) : Promise<string> => {
 // if token is not set or expired, fetch a new one
     if (!bearerToken || bearerExpiresAt < Date.now()) {
         console.log("Bearer token not set or expired. Fetching new one.")
 
         try {
-            const response = await fetch(`${url}/api/v1/auth/token`, {
+            const response = await fetch(`${url}/api/oauth/token`, {
                 method: 'POST',
                 headers: {
-                    authorization: 'Basic ' + Buffer.from(`${username}:${password}`).toString('base64')
-                }
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: new URLSearchParams({
+                    grant_type: 'client_credentials',
+                    client_id: clientId,
+                    client_secret: clientSecret
+                })
             })
 
             const data = await response.json()
-            bearerToken = data.token
-            bearerExpiresAt = data.expires
+            bearerToken = data.access_token
+            bearerExpiresAt = Date.now() + data.expires_in * 1000
     
             console.log("Bearer token fetched. Expires at: " + bearerExpiresAt)
         } catch (error) {
@@ -38,7 +43,7 @@ const fetchWithJamfAuth = async (path: string, init?: RequestInit): Promise<Resp
     let headers = Object.fromEntries(new Headers(init?.headers) ?? [])
 
     // add authentication to the request
-    const token = await getBearerToken(JSS_URL, JSS_USERNAME, JSS_PASSWORD)
+    const token = await getBearerToken(JSS_URL, JSS_CLIENTID, JSS_CLIENTSECRET)
     headers['authorization'] = 'Bearer ' + token
     headers['user-agent'] = 'ComputerAPIProxy/1.0 ' + headers['User-Agent']
 
