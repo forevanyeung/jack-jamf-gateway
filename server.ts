@@ -1,5 +1,6 @@
 import * as fs from 'fs'
 import * as https from 'https'
+import { randomUUID } from 'crypto'
 import { getPathDetails, isValidMethodPath, isValidCert } from './utils/utils'
 import { certMatchesComputer, proxyIncommingMessageWithJamAuth } from './utils/jamf'
 
@@ -9,34 +10,40 @@ const HTTPS_KEY = process.env.HTTPS_KEY || fs.readFileSync('certificates/server.
 const JAMF_CA_CERT = process.env.JAMF_CA_CERT || fs.readFileSync('certificates/jamfca.crt');
 
 const app = async (req, res) => {
+    // generate a unique session id for each request
+    // doesn't need to be 100% unique, just enough to identify the request, and 
+    // short enough to not take up too much space in the logs
+    const sessionId = randomUUID().substring(0, 8);
+
     try {
-        console.log('Request received')
-        console.log(req.method, req.url);
+        console.log(`[${sessionId}] ${req.method} ${req.url}`);
 
         // check if the client certificate is signed by the Jamf CA
         // cannot use req.client.authorized because the client certificate
         // does not have keyEncipherment key usage
         const peerCert = req.socket.getPeerCertificate();
+        console.log(`[${sessionId}] Peer certificate: ${peerCert.subject?.CN}`);
+
         if (Object.keys(peerCert).length === 0 || !isValidCert(peerCert.raw, JAMF_CA_CERT)) {
-            console.error("401 Missing or invalid peer certificate not signed by CA")
+            console.error(`[${sessionId}] 401 Missing or invalid peer certificate not signed by CA`);
             res.writeHead(401);
             return res.end('Unauthorized');
         }
 
         // extracts details from the path
         const {resource, lookupType, lookupValue} = getPathDetails(req.url);
-        console.log("Extracted details from path", resource, lookupType, lookupValue)
+        console.log(`[${sessionId}] Extracted details from path: ${resource}, ${lookupType}, ${lookupValue}`);
 
         // check if the path is one of the valid JAMF api paths
         if (!isValidMethodPath(req.method, resource)) {
-            console.error("404 Invalid method or resource path")
+            console.error(`[${sessionId}] 404 Invalid method or resource path`);
             res.writeHead(404);
             return res.end('Not Found');
         }
 
         // confirm certificate belongs to the computer record
         if (! await certMatchesComputer(lookupType, lookupValue, peerCert.subject.CN)) {
-            console.error("401 Certificate does not belong to the computer record")
+            console.error(`[${sessionId}] 401 Certificate does not belong to the computer record`)
             res.writeHead(401);
             return res.end('Unauthorized');
         }
@@ -49,8 +56,10 @@ const app = async (req, res) => {
 
         res.writeHead(proxyResponse.status, Object.fromEntries(proxyResponse.headers));
         res.end(body);
+
+        console.log(`[${sessionId}] ${proxyResponse.status} Proxy response sent.`)
     } catch (error) {
-        console.error(error);
+        console.error(`[${sessionId}] Error: ${error.message}`);
         res.writeHead(500);
         res.end('Internal Server Error');
     }
