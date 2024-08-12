@@ -34,41 +34,36 @@ function get_jamf_device_cert {
     identities=$(security find-identity -v)
 
     # Extract the certificate names into an array
-    # cert_names=$(echo "$identities" | grep -oE '"[^"]+"' | tr -d '"')
-    IFS=$'\n' read -r -d '' -A cert_names < <(echo "$identities" | grep -oE '"[^"]+"' | tr -d '"' && printf '\0')
+    cert_names=($(echo "$identities" | grep -oE '"[^"]+"' | tr -d '"'))
 
     latest_cert_name=""
     latest_enddate=""
 
     # Loop through each certificate name
-    for name in $cert_names; do
+    for name in "${cert_names[@]}"; do
         # Get certificate in PEM format
-        cert_pem=$(security find-certificate -p -c $name)
+        cert_pem=$(security find-certificate -p -c "$name")
 
         # Extract the issuer
         issuer=$(echo "$cert_pem" | openssl x509 -noout -issuer | awk -F'CN=' '{split($2, a, ","); print a[1]}')
         
         # Compare if issuer matches common name of Jamf CA 
-        if [ "$issuer" != "$1" ]; then
-            continue
-        fi
+        [ "$issuer" != "$1" ] && continue
 
         # Extract the end date
         enddate=$(echo "$cert_pem" | openssl x509 -noout -enddate | awk -F'=' '{print $2}')
 
         # Check if enddate is not past today
-        if [[ "$(date -jf "%b %d %T %Y %Z" "$enddate" +%s)" -lt "$(date +%s)" ]]; then
-            continue
-        fi
+        [ "$(date -jf "%b %d %T %Y %Z" "$enddate" +%s)" -lt "$(date +%s)" ] && continue
         
         # Compare dates and update the latest certificate
         if [[ -z "$latest_enddate" || "$(date -jf "%b %d %T %Y %Z" "$enddate" +%s)" -gt "$(date -jf "%b %d %T %Y %Z" "$latest_enddate" +%s)" ]]; then
             latest_enddate="$enddate"
             latest_cert_name="$name"
         fi
-
-        echo "$latest_cert_name"        
     done
+
+    echo "$latest_cert_name"
 }
 
 # change this to be the common name of your Jamf CA
