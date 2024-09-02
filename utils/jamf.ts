@@ -78,7 +78,10 @@ export const certMatchesComputer = async (lookupType: string, lookupValue: strin
 
     const certificates = computer.computer.certificates
 
-    const matchFound = certificates.some(cert => cert.common_name === certName);
+    // only check system certificates with a private key (identity) for a match
+    const systemCertificates = certificates.filter(cert => cert.name === '' && cert.identity === true)
+    
+    const matchFound = systemCertificates.some(cert => cert.common_name === certName);
 
     return matchFound
 }
